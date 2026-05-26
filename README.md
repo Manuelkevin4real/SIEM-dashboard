@@ -1,5 +1,5 @@
 
-<img width="54" height="54" alt="cybershield solutions" src="https://github.com/user-attachments/assets/e9c458e7-6954-495a-ae9b-7b90e5a75326" />
+<img width="500" height="500" alt="cybershield solutions" src="https://github.com/user-attachments/assets/e9c458e7-6954-495a-ae9b-7b90e5a75326" />
 
 # CyberShield Solutions  
 ### *Detect. Defend. Respond.*
