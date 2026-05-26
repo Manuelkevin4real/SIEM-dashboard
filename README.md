@@ -35,11 +35,11 @@ Our goal is to make cybersecurity smarter, more proactive, and accessible throug
 ---
 
 # Our Team
-Project Manager : Manuel Kevin ZE FOUDA
-Software enginner : JIBU Mereena mariam
-Developper 1 : CHAPPAN PUTHIYA PURAYIL Abdul fathah 
-Developper 2 : DAMA Dola krishna
-QA Enginneer : JOGI Sudheer reddy
+- Project Manager : Manuel Kevin ZE FOUDA
+- Software enginner : JIBU Mereena mariam
+- Developer 1 : CHAPPAN PUTHIYA PURAYIL Abdul fathah 
+- Developer 2 : DAMA Dola krishna
+- QA Enginneer : JOGI Sudheer reddy
 
 ---
 
