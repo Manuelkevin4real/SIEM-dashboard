@@ -1,0 +1,201 @@
+# Guide de configuration Power BI
+# Cybersecurity Incident Response Dashboard
+# ══════════════════════════════════════════════════════════════════════════════
+
+## ÉTAPE 1 — Connexion à la source Excel
+
+1. Ouvrir Power BI Desktop
+2. Accueil → Obtenir des données → Classeur Excel
+3. Sélectionner : CyberDashboard_Data.xlsx
+4. Cocher les feuilles suivantes dans le navigateur :
+   ✅ Données
+   ✅ Configuration
+   ✅ KPI Dashboard (optionnel)
+   ✅ Journal Alertes
+5. Cliquer sur "Transformer les données"
+
+## ÉTAPE 2 — Nettoyage dans Power Query
+
+Dans l'éditeur Power Query, pour chaque feuille :
+- Supprimer la première ligne vide si présente
+- Utiliser "Utiliser la première ligne comme en-têtes"
+- Vérifier les types :
+  • "Date & Heure" → Date/Heure
+  • Toutes les colonnes numériques → Nombre entier ou Décimal
+
+Feuille "Configuration" : filtrer pour ne garder que les lignes 5 à 11
+(les seuils des indicateurs). Renommer les colonnes :
+  Colonne1 → Indicateur
+  Colonne2 → Seuil_Avert
+  Colonne3 → Seuil_Critique
+
+Fermer et appliquer.
+
+## ÉTAPE 3 — Mesures DAX à créer
+
+Dans le panneau "Modélisation" → "Nouvelle mesure", créer les mesures suivantes :
+
+──────────────────────────────────────────────────────────────────
+[Total Mails 30j]
+= SUM(Données[Mails reçus])
+
+[Moyenne Requêtes/j]
+= AVERAGE(Données[Requêtes réseau])
+
+[Max Trafic Entrant]
+= MAX(Données[Trafic entrant (MB)])
+
+[Total Alertes IDS]
+= SUM(Données[Alertes IDS])
+
+[Total Tentatives Connexion]
+= SUM(Données[Tentatives de connexion])
+
+[Variation Mails %]
+=
+VAR derniere_date = MAX(Données[Date & Heure])
+VAR avant_derniere = CALCULATE(MAX(Données[Date & Heure]),
+    Données[Date & Heure] < derniere_date)
+VAR val_last = CALCULATE(SUM(Données[Mails reçus]),
+    Données[Date & Heure] = derniere_date)
+VAR val_prev = CALCULATE(SUM(Données[Mails reçus]),
+    Données[Date & Heure] = avant_derniere)
+RETURN DIVIDE(val_last - val_prev, val_prev, 0)
+
+[Statut Global]
+=
+VAR max_mails    = CALCULATE(MAX(Données[Mails reçus]))
+VAR max_req      = CALCULATE(MAX(Données[Requêtes réseau]))
+VAR seuil_mails  = LOOKUPVALUE(Configuration[Seuil_Critique],
+                     Configuration[Indicateur], "Mails reçus")
+VAR seuil_req    = LOOKUPVALUE(Configuration[Seuil_Critique],
+                     Configuration[Indicateur], "Requêtes réseau")
+RETURN
+IF(max_mails >= seuil_mails || max_req >= seuil_req,
+   "🔴 CRITIQUE", "🟢 NOMINAL")
+──────────────────────────────────────────────────────────────────
+
+## ÉTAPE 4 — Construction des visuels
+
+### Page 1 : "Vue Globale"
+
+┌─ Carte KPI ────────────────────────────────────────────────────┐
+│  Visuel : Carte (Card)                                          │
+│  Champ  : [Total Mails 30j]                                    │
+│  Titre  : "Total mails reçus (30j)"                            │
+│  Répéter pour chaque KPI (6 cartes en grille 3x2)             │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Graphique en courbe — Évolution temporelle ───────────────────┐
+│  Visuel : Graphique en courbes                                  │
+│  Axe X  : Données[Date & Heure]                                │
+│  Axe Y  : Données[Mails reçus], Données[Requêtes réseau]       │
+│  Légende: Activée                                              │
+│  Titre  : "Évolution des indicateurs — 30 derniers jours"      │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Graphique à barres — Requêtes réseau/jour ────────────────────┐
+│  Visuel : Graphique à barres groupées                           │
+│  Axe X  : Données[Date & Heure]                                │
+│  Axe Y  : Données[Requêtes réseau]                             │
+│  Mise en forme conditionnelle :                                 │
+│    → Couleur rouge si valeur > seuil critique                  │
+│    → Couleur orange si valeur > seuil avertissement            │
+│    → Couleur verte sinon                                       │
+└────────────────────────────────────────────────────────────────┘
+
+### Page 2 : "Analyse des Risques"
+
+┌─ Graphique en nuage de points — Matrice de risque ────────────┐
+│  Visuel : Nuage de points                                       │
+│  Axe X  : Données[Requêtes réseau] (Probabilité proxy)         │
+│  Axe Y  : Données[Alertes IDS] (Impact proxy)                  │
+│  Taille : Données[Tentatives de connexion]                     │
+│  Couleur: Données[Date & Heure]                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Tableau des seuils ───────────────────────────────────────────┐
+│  Visuel : Table                                                 │
+│  Colonnes : Configuration[Indicateur], [Seuil_Avert],         │
+│             [Seuil_Critique]                                   │
+│  Mise en forme conditionnelle : cellules colorées par niveau   │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Jauge — Trafic entrant ───────────────────────────────────────┐
+│  Visuel : Jauge                                                 │
+│  Valeur : [Max Trafic Entrant]                                 │
+│  Cible  : 300 (seuil avertissement)                            │
+│  Max    : 800                                                  │
+└────────────────────────────────────────────────────────────────┘
+
+### Page 3 : "Journal des Incidents"
+
+┌─ Tableau Journal ──────────────────────────────────────────────┐
+│  Visuel : Table                                                 │
+│  Source : Journal Alertes (toutes colonnes)                    │
+│  Tri    : Horodatage décroissant                               │
+│  Mise en forme conditionnelle sur "Sévérité" :                 │
+│    CRITIQUE → rouge #da3633                                    │
+│    AVERTISSEMENT → orange #d29922                              │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Segment de date ──────────────────────────────────────────────┐
+│  Visuel : Segment (Slicer)                                      │
+│  Champ  : Journal Alertes[Horodatage]                          │
+│  Type   : Plage de dates                                       │
+└────────────────────────────────────────────────────────────────┘
+
+## ÉTAPE 5 — Thème & Mise en forme
+
+Fichier → Options → Personnaliser → Thème actuel :
+
+Couleurs recommandées :
+  Primaire    : #1F6FEB (bleu cyber)
+  Secondaire  : #238636 (vert succès)
+  Alerte      : #D29922 (amber)
+  Critique    : #DA3633 (rouge)
+  Fond        : #0D1117 (dark) ou #F6F8FA (light)
+  Texte       : #E6EDF3 (sur fond sombre) / #0D1117 (sur fond clair)
+
+Police recommandée : Segoe UI (disponible nativement dans Power BI)
+
+## ÉTAPE 6 — Actualisation automatique
+
+1. Publier vers Power BI Service (Accueil → Publier)
+2. Dans Power BI Service → Jeux de données → Planifier l'actualisation
+3. Configurer : toutes les heures (ou selon vos besoins)
+4. Activer les notifications d'échec d'actualisation
+
+## ÉTAPE 7 — Alertes Power BI (natif)
+
+Dans Power BI Service, sur une Carte KPI :
+1. Cliquer sur les "..." → Gérer les alertes
+2. Ajouter une alerte :
+   • Condition : Supérieur à [seuil critique]
+   • Fréquence : Maximum toutes les heures
+   • Notification : Email + notification mobile
+
+IMPORTANT : Pour les alertes avancées (mail HTML formaté),
+utiliser le script alert_engine.py en combinaison avec
+une tâche planifiée (cron Linux / Planificateur Windows).
+
+## ÉTAPE 8 — Tâche planifiée (script Python)
+
+### Windows (Planificateur de tâches) :
+1. Ouvrir "Planificateur de tâches"
+2. Créer une tâche de base → Déclencheur : Quotidien, toutes les heures
+3. Action : Démarrer un programme
+   Programme : python
+   Arguments : C:\chemin\vers\alert_engine.py --file C:\chemin\vers\CyberDashboard_Data.xlsx
+
+### Linux / macOS (cron) :
+Editer le crontab : crontab -e
+Ajouter :
+  0 * * * * /usr/bin/python3 /chemin/vers/alert_engine.py --file /chemin/vers/CyberDashboard_Data.xlsx >> /var/log/cyber_alerts.log 2>&1
+
+Cela exécutera le script toutes les heures.
+
+══════════════════════════════════════════════════════════════════
+FIN DU GUIDE POWER BI
+Pour toute assistance : consulter docs.microsoft.com/power-bi
+══════════════════════════════════════════════════════════════════
